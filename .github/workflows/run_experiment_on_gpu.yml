@@ -1,0 +1,78 @@
+name: Execute Experiment
+
+on:
+  workflow_dispatch:
+    inputs:
+      experiment_iteration:
+        description: "Iteration count"
+        required: true
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  execution-of-automated-research-methods:
+    name: Execution of automated research methods
+    runs-on:
+      labels: gpu-runner
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Prepare iteration dir
+        run: |
+          mkdir -p .research
+          iteration_dir=".research/iteration${{ github.event.inputs.experiment_iteration }}"
+          mkdir -p "$iteration_dir"
+          echo "ITERATION_DIR=$iteration_dir" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: |
+          set -o pipefail
+          pip install -r requirements.txt \
+            > >(tee "$ITERATION_DIR/pip_stdout.txt") \
+            2> >(tee "$ITERATION_DIR/pip_stderr.txt" >&2)
+        continue-on-error: true
+
+      - name: Summarize pip install result
+        if: always()
+        run: |
+          if [ -s "$ITERATION_DIR/pip_stderr.txt" ]; then
+            {
+              echo "### pip install errors detected"
+              echo ""
+              echo "Saved at: \`$ITERATION_DIR/pip_stderr.txt\`"
+              echo ""
+              echo "Last 50 lines:"
+              tail -n 50 "$ITERATION_DIR/pip_stderr.txt" | sed 's/^/    /'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "pip install succeeded." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Run experiment
+        if: always()
+        run: |
+          echo "Using directory: $ITERATION_DIR"
+          python src/main.py > "$ITERATION_DIR/output.txt" 2> "$ITERATION_DIR/error.txt"
+        continue-on-error: true
+
+      - name: Commit and push results
+        if: always()
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .research/
+          git commit -m "Add experiment results (iteration ${{ github.event.inputs.experiment_iteration }})" || echo "No changes to commit"
+          git push
