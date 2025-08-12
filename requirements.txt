@@ -1,1 +1,12 @@
-# Please list the required python packages.
+torch>=2.0
+numpy
+matplotlib
+seaborn
+gymnasium>=0.26
+d4rl
+safety_gymnasium>=0.3.0
+mujoco-python>=2.3.5
+scikit-learn
+numba
+wandb
+yaml

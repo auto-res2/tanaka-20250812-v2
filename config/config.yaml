@@ -1,0 +1,10 @@
+device: cuda
+obs_dim: 4
+act_dim: 2
+lr: 0.0003
+dropout_p: 0.1
+timewarp_k: 3
+batch_size: 256
+train_steps: 1024
+env_name: CartPole-v1
+seed: 42
